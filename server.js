@@ -1,18 +1,27 @@
 const express = require("express");
 const axios = require("axios");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 🔥 DEBUG LOG (important sa Render logs)
+console.log("🔥 NEW VERSION LOADED");
+
+// =====================
+// CACHE SYSTEM
+// =====================
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
 
 function getCache(key) {
     const entry = cache.get(key);
     if (!entry) return null;
+
     if (Date.now() > entry.expiresAt) {
         cache.delete(key);
         return null;
     }
+
     return entry.data;
 }
 
@@ -23,6 +32,16 @@ function setCache(key, data) {
     });
 }
 
+// =====================
+// ROOT CHECK (FIX FOR "Not Found")
+// =====================
+app.get("/", (req, res) => {
+    res.send("✅ Server is running (Render OK)");
+});
+
+// =====================
+// GAMEPASSES ENDPOINT
+// =====================
 app.get("/gamepasses/:userId", async (req, res) => {
     const userId = req.params.userId;
 
@@ -32,7 +51,11 @@ app.get("/gamepasses/:userId", async (req, res) => {
 
     const cached = getCache(userId);
     if (cached) {
-        return res.json({ success: true, cached: true, gamepasses: cached });
+        return res.json({
+            success: true,
+            cached: true,
+            gamepasses: cached
+        });
     }
 
     try {
@@ -53,35 +76,54 @@ app.get("/gamepasses/:userId", async (req, res) => {
 
             const items = response.data?.data || [];
 
-           
             items
                 .filter(item => item.itemType === "Asset")
                 .forEach(item => allPasses.push(item.id));
 
             cursor = response.data?.nextPageCursor || null;
+
         } while (cursor);
 
         setCache(userId, allPasses);
-        res.json({ success: true, cached: false, gamepasses: allPasses });
+
+        res.json({
+            success: true,
+            cached: false,
+            gamepasses: allPasses
+        });
 
     } catch (err) {
-        console.error("Error:", err.message);
-        res.status(500).json({ success: false, error: err.message });
+        console.error("Gamepass Error:", err.message);
+
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 });
 
+// =====================
+// PROXY ENDPOINT
+// =====================
 app.get("/proxy", async (req, res) => {
     const targetUrl = req.query.url;
 
     if (!targetUrl) {
-        return res.status(400).json({ success: false, error: "Missing 'url' parameter" });
+        return res.status(400).json({
+            success: false,
+            error: "Missing 'url' parameter"
+        });
     }
 
     let parsedUrl;
+
     try {
         parsedUrl = new URL(targetUrl);
     } catch {
-        return res.status(400).json({ success: false, error: "Invalid URL" });
+        return res.status(400).json({
+            success: false,
+            error: "Invalid URL"
+        });
     }
 
     const ALLOWED_HOSTS = [
@@ -92,8 +134,12 @@ app.get("/proxy", async (req, res) => {
     ];
 
     const hostname = parsedUrl.hostname;
+
     if (!ALLOWED_HOSTS.some(allowed => hostname.endsWith(allowed))) {
-        return res.status(403).json({ success: false, error: `Host not allowed: ${hostname}` });
+        return res.status(403).json({
+            success: false,
+            error: `Host not allowed: ${hostname}`
+        });
     }
 
     try {
@@ -104,10 +150,22 @@ app.get("/proxy", async (req, res) => {
                 "User-Agent": "Mozilla/5.0"
             }
         });
+
         res.json(response.data);
+
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        console.error("Proxy Error:", err.message);
+
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 });
 
-app.listen(PORT, () => console.log(`✅ Proxy running on port ${PORT}`));
+// =====================
+// START SERVER
+// =====================
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
