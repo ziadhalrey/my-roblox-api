@@ -1,7 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -53,7 +53,7 @@ app.get("/gamepasses/:userId", async (req, res) => {
 
             const items = response.data?.data || [];
 
-            // ✅ Filter GamePass lang, hindi Bundle
+           
             items
                 .filter(item => item.itemType === "Asset")
                 .forEach(item => allPasses.push(item.id));
@@ -110,4 +110,4 @@ app.get("/proxy", async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`✅ Proxy running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`✅ Proxy running on port ${PORT}`));
